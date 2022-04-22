@@ -3,6 +3,7 @@ package part2_lowlevelserver
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.IncomingConnection
+import akka.http.scaladsl.model.headers.Location
 import akka.http.scaladsl.model.{ContentTypes, HttpEntity, HttpMethods, HttpRequest, HttpResponse, StatusCodes, Uri}
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Flow, Sink}
@@ -149,5 +150,141 @@ object LowLevelApi extends App {
 //    connection.handleWith(streamBasedRequestHandler)
 //  }
   // shorthand version
-  Http().bindAndHandle(streamBasedRequestHandler, "localhost", 8082)
+//  Http().bindAndHandle(streamBasedRequestHandler, "localhost", 8082)
+
+  /*
+  Exercise: create your own HTTP server running on localhost on 8388, which replies
+  - with a welcome message on the "front door" localhost:8388
+  - with a proper HTML on localhost:8388/about
+  - with a 404 message otherwise
+   */
+  val syncRequestHandler8388: HttpRequest => HttpResponse = {
+    case HttpRequest(HttpMethods.GET, Uri.Path("/"), _, _, _) => HttpResponse(
+      StatusCodes.OK,
+      entity = HttpEntity(
+        ContentTypes.`text/html(UTF-8)`,
+        """
+          |<html>
+          | <body>
+          | Welcome to port 8388
+          | </body>
+          |</html>
+          |""".stripMargin
+      )
+    )
+    case HttpRequest(HttpMethods.GET, Uri.Path("/about"), _, _, _) => HttpResponse(
+      StatusCodes.OK,
+      entity = HttpEntity(
+        ContentTypes.`text/html(UTF-8)`,
+        """
+          |<html>
+          | <body>
+          | About port 8388
+          | </body>
+          |</html>
+          |""".stripMargin
+      )
+    )
+    case _ => HttpResponse(StatusCodes.NotFound,
+      entity = HttpEntity(
+        ContentTypes.`text/html(UTF-8)`,
+        """
+          |<html>
+          | <body>
+          | OOPS! The resource can't be found.
+          | </body>
+          |</html>
+          |""".stripMargin
+      ))
+  }
+//  Http().bindAndHandleSync(syncRequestHandler8388, "localhost", 8388)
+  val asyncRequestHandler8388: HttpRequest => Future[HttpResponse] = {
+    case HttpRequest(HttpMethods.GET, Uri.Path("/"), _, _, _) => Future(HttpResponse(
+      StatusCodes.OK,
+      entity = HttpEntity(
+        ContentTypes.`text/html(UTF-8)`,
+        """
+          |<html>
+          | <body>
+          | Welcome to port 8388
+          | </body>
+          |</html>
+          |""".stripMargin
+      )
+    ))
+    case HttpRequest(HttpMethods.GET, Uri.Path("/about"), _, _, _) => Future(HttpResponse(
+      StatusCodes.OK,
+      entity = HttpEntity(
+        ContentTypes.`text/html(UTF-8)`,
+        """
+          |<html>
+          | <body>
+          | About port 8388
+          | </body>
+          |</html>
+          |""".stripMargin
+      )
+    ))
+    case _ => Future(HttpResponse(StatusCodes.NotFound,
+      entity = HttpEntity(
+        ContentTypes.`text/html(UTF-8)`,
+        """
+          |<html>
+          | <body>
+          | OOPS! The resource can't be found.
+          | </body>
+          |</html>
+          |""".stripMargin
+      )))
+  }
+//  Http().bindAndHandleAsync(asyncRequestHandler8388, "localhost", 8388)
+  val streamBasedRequestHandler8388: Flow[HttpRequest, HttpResponse, _] = Flow[HttpRequest].map {
+    case HttpRequest(HttpMethods.GET, Uri.Path("/"), _, _, _) => HttpResponse(
+      StatusCodes.OK,
+      entity = HttpEntity(
+        ContentTypes.`text/html(UTF-8)`,
+        """
+          |<html>
+          | <body>
+          | Welcome to port 8388
+          | </body>
+          |</html>
+          |""".stripMargin
+      )
+    )
+    case HttpRequest(HttpMethods.GET, Uri.Path("/about"), _, _, _) => HttpResponse(
+      StatusCodes.OK,
+      entity = HttpEntity(
+        ContentTypes.`text/html(UTF-8)`,
+        """
+          |<html>
+          | <body>
+          | About port 8388
+          | </body>
+          |</html>
+          |""".stripMargin
+      )
+    )
+    case HttpRequest(HttpMethods.GET, Uri.Path("/search"), _, _, _) => HttpResponse(
+      StatusCodes.Found,
+      headers = List(Location("http://google.com"))
+    )
+    case _ => HttpResponse(StatusCodes.NotFound,
+      entity = HttpEntity(
+        ContentTypes.`text/html(UTF-8)`,
+        """
+          |<html>
+          | <body>
+          | OOPS! The resource can't be found.
+          | </body>
+          |</html>
+          |""".stripMargin
+      ))
+  }
+  val bindingFuture = Http().bindAndHandle(streamBasedRequestHandler8388, "localhost", 8388)
+
+  //shutdown the server
+  bindingFuture.flatMap(binding => binding.unbind())
+    .onComplete(_ => system.terminate())
+
 }
